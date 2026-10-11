@@ -45,7 +45,9 @@ export default {
 
       const arrayBuffer = await file.arrayBuffer();
 
-      const hfUrl = `https://api-inference.huggingface.co/models/${repoId}`;
+      const base = env.HF_BASE_URL || "https://router.huggingface.co/hf-inference/models";
+      const hfUrl = `${base}/${repoId}`;
+
       const hfResponse = await fetch(hfUrl, {
         method: "POST",
         headers: {
