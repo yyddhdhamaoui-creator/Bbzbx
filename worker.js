@@ -6,6 +6,12 @@ export default {
       "Access-Control-Allow-Headers": "Content-Type",
     };
 
+    const ENDPOINTS = {
+      "imager-1": "URL_DEL_ENDPOINT_IMAGER_1",
+      "imager-1-tiny": "URL_DEL_ENDPOINT_TINY",
+      "imager-1-pro": "URL_DEL_ENDPOINT_PRO",
+    };
+
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
     }
@@ -21,17 +27,16 @@ export default {
       const url = new URL(request.url);
       const modelPath = url.pathname.replace(/^\/+|\/+$/g, "");
 
-      if (!modelPath) {
+      const hfUrl = ENDPOINTS[modelPath];
+      if (!hfUrl) {
         return new Response(
           JSON.stringify({
-            error: "No model specified",
-            example: "/imager-1-pro",
+            error: "Unknown model",
+            available: Object.keys(ENDPOINTS),
           }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
-      const repoId = `Imagers/${modelPath}`;
 
       const formData = await request.formData();
       const file = formData.get("file");
@@ -44,9 +49,6 @@ export default {
       }
 
       const arrayBuffer = await file.arrayBuffer();
-
-      const base = env.HF_BASE_URL || "https://router.huggingface.co/hf-inference/models";
-      const hfUrl = `${base}/${repoId}`;
 
       const hfResponse = await fetch(hfUrl, {
         method: "POST",
@@ -61,11 +63,11 @@ export default {
         const errorText = await hfResponse.text();
         let friendlyError = "Model error";
         if (hfResponse.status === 503) friendlyError = "Model is loading, retry in 20 seconds";
-        if (hfResponse.status === 404) friendlyError = `Model '${repoId}' not found`;
         if (hfResponse.status === 401) friendlyError = "Invalid HF token";
+        if (hfResponse.status === 404) friendlyError = "Endpoint not found";
 
         return new Response(
-          JSON.stringify({ error: friendlyError, model: repoId, status: hfResponse.status, detail: errorText.slice(0, 300) }),
+          JSON.stringify({ error: friendlyError, model: modelPath, status: hfResponse.status, detail: errorText.slice(0, 300) }),
           { status: hfResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -83,7 +85,7 @@ export default {
 
       return new Response(
         JSON.stringify({
-          model_repo: repoId,
+          model: modelPath,
           label: isAI ? "AI-Generated" : "Real Image",
           isAI: isAI,
           confidence: parseFloat(confidence.toFixed(2)),
